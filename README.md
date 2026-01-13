@@ -2,6 +2,14 @@
 
 Turn your M5Stack Cardputer into a CardKB-compatible I2C keyboard. This allows the Cardputer to act as an external keyboard for devices that support CardKB, such as Meshtastic nodes running on Heltec boards.
 
+## Features
+
+- I2C slave emulation at standard CardKB address (0x5F)
+- 128-byte key buffer
+- Arrow key support via Fn+IJKL or Fn+WASD
+- Audible keypress feedback (beep on buzzer)
+- Real-time display showing queue status and I2C activity
+
 ## Use Case
 
 Meshtastic firmware on Heltec LoRa boards supports the CardKB keyboard over I2C. This project lets you use the Cardputer's built-in keyboard as a CardKB, enabling text input for Meshtastic without needing a separate CardKB unit.
