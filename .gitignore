@@ -1,0 +1,7 @@
+# Compiled binaries
+*.bin
+*.elf
+*.hex
+
+# Build directories
+build/
