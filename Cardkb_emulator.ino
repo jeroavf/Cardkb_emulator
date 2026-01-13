@@ -8,6 +8,15 @@ static const uint8_t CARDKB_ADDR = 0x5F;
 static const int BEEP_FREQ = 1800;  // Hz
 static const int BEEP_DURATION = 10; // ms
 
+// ===================== Display mode =====================
+static bool debugMode = false;
+static const uint32_t CONNECTION_TIMEOUT_MS = 2000; // consider disconnected after 2s no requests
+
+// Text preview buffer (last typed characters)
+static const int PREVIEW_SIZE = 40;
+static char previewBuf[PREVIEW_SIZE + 1] = {0};
+static int previewLen = 0;
+
 // CardKB arrow codes (common)
 static const uint8_t KB_LEFT  = 0xB4;
 static const uint8_t KB_UP    = 0xB5;
@@ -66,7 +75,78 @@ static const char* decodeSpecial(uint8_t v) {
   }
 }
 
-static void drawStatus() {
+// Add character to preview buffer
+static void previewAdd(uint8_t c) {
+  if (c == 0x08) { // Backspace
+    if (previewLen > 0) {
+      previewLen--;
+      previewBuf[previewLen] = '\0';
+    }
+  } else if (c == 0x0D || c == 0x0A) { // Enter/LF - clear preview
+    previewLen = 0;
+    previewBuf[0] = '\0';
+  } else if (c >= 0x20 && c <= 0x7E) { // Printable ASCII
+    if (previewLen >= PREVIEW_SIZE) {
+      // Shift buffer left
+      memmove(previewBuf, previewBuf + 1, PREVIEW_SIZE - 1);
+      previewLen = PREVIEW_SIZE - 1;
+    }
+    previewBuf[previewLen++] = (char)c;
+    previewBuf[previewLen] = '\0';
+  }
+  // Arrow keys and other special codes don't appear in preview
+}
+
+static bool isConnected() {
+  return (last_req_ms > 0) && (millis() - last_req_ms < CONNECTION_TIMEOUT_MS);
+}
+
+static void drawUserDisplay() {
+  auto &d = M5Cardputer.Display;
+
+  // Header
+  d.setTextSize(2);
+  d.setCursor(0, 0);
+  d.println("CardKB Emulator");
+
+  // Connection status
+  d.setCursor(0, 30);
+  d.setTextSize(2);
+  if (isConnected()) {
+    d.setTextColor(GREEN, BLACK);
+    d.println("  * Connected");
+  } else {
+    d.setTextColor(DARKGREY, BLACK);
+    d.println("  * Waiting...");
+  }
+  d.setTextColor(WHITE, BLACK);
+
+  // Text preview area
+  d.setCursor(0, 70);
+  d.setTextSize(2);
+  d.println("Text:");
+
+  d.setCursor(0, 95);
+  d.setTextSize(2);
+  if (previewLen > 0) {
+    // Show last portion that fits on screen (about 20 chars at size 2)
+    int startIdx = (previewLen > 20) ? previewLen - 20 : 0;
+    d.printf("%s_", &previewBuf[startIdx]);
+  } else {
+    d.setTextColor(DARKGREY, BLACK);
+    d.println("_");
+    d.setTextColor(WHITE, BLACK);
+  }
+
+  // Help hint at bottom
+  d.setCursor(0, 125);
+  d.setTextSize(1);
+  d.setTextColor(DARKGREY, BLACK);
+  d.println("Fn+D: debug mode");
+  d.setTextColor(WHITE, BLACK);
+}
+
+static void drawDebugDisplay() {
   auto &d = M5Cardputer.Display;
 
   // Request status line at top
@@ -136,6 +216,12 @@ static void drawStatus() {
   } else {
     d.println("t=---\n");
   }
+
+  // Help hint
+  d.setTextSize(1);
+  d.setTextColor(DARKGREY, BLACK);
+  d.println("\nFn+D: user mode");
+  d.setTextColor(WHITE, BLACK);
 }
 
 static void uiUpdate(bool forceClear = false) {
@@ -143,16 +229,40 @@ static void uiUpdate(bool forceClear = false) {
   static uint8_t prev_tx  = 0xFF;
   static int prev_qc = -1;
   static uint32_t prev_req_ms = 0;
+  static int prev_previewLen = -1;
+  static bool prev_connected = false;
+  static bool prev_debugMode = false;
 
   int qc = q_count();
-  if (forceClear || prev_enq != last_enq || prev_tx != last_tx || prev_qc != qc || prev_req_ms != last_req_ms) {
+  bool connected = isConnected();
+
+  bool needsRedraw = forceClear || prev_debugMode != debugMode;
+
+  if (debugMode) {
+    needsRedraw = needsRedraw || prev_enq != last_enq || prev_tx != last_tx ||
+                  prev_qc != qc || prev_req_ms != last_req_ms;
+  } else {
+    needsRedraw = needsRedraw || prev_previewLen != previewLen ||
+                  prev_connected != connected || prev_enq != last_enq;
+  }
+
+  if (needsRedraw) {
     M5Cardputer.Display.fillScreen(BLACK);
     M5Cardputer.Display.setTextColor(WHITE, BLACK);
-    drawStatus();
+
+    if (debugMode) {
+      drawDebugDisplay();
+    } else {
+      drawUserDisplay();
+    }
+
     prev_enq = last_enq;
     prev_tx  = last_tx;
     prev_qc  = qc;
     prev_req_ms = last_req_ms;
+    prev_previewLen = previewLen;
+    prev_connected = connected;
+    prev_debugMode = debugMode;
   }
 }
 
@@ -193,6 +303,7 @@ static inline void enqueueWithUi(uint8_t b) {
   q_push(b);
   last_enq = b;
   last_enq_ms = millis();
+  previewAdd(b);
   M5Cardputer.Speaker.tone(BEEP_FREQ, BEEP_DURATION);
 }
 
@@ -225,6 +336,13 @@ void loop() {
       if (!c) continue;
 
       if (fn) {
+        // Fn+D toggles debug mode
+        if (c == 'd' || c == 'D') {
+          debugMode = !debugMode;
+          uiUpdate(true); // force redraw
+          continue;
+        }
+
         uint8_t arrow = arrowFromFnChar((char)c);
         if (arrow) {
           enqueueWithUi(arrow); // enqueue arrow code expected by CardKB/Meshtastic

@@ -12,9 +12,10 @@ Turn your [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardpute
 
 - I2C slave emulation at standard CardKB address (0x5F)
 - 128-byte key buffer
-- Arrow key support via Fn+IJKL or Fn+WASD
+- Arrow key support via Fn+IJKL or Fn+WAS
 - Audible keypress feedback (beep on buzzer)
-- Real-time display showing queue status and I2C activity
+- Clean user display with connection status and text preview
+- Debug display mode (toggle with Fn+D)
 
 ## Use Case
 
@@ -77,16 +78,22 @@ esptool.py --chip esp32s3 --port /dev/ttyACM0 write_flash 0x0 Cardkb_emulator.bi
 | Fn + I or Fn + W | `0xB5` (Arrow Up) |
 | Fn + K or Fn + S | `0xB6` (Arrow Down) |
 | Fn + J or Fn + A | `0xB4` (Arrow Left) |
-| Fn + L or Fn + D | `0xB7` (Arrow Right) |
+| Fn + L | `0xB7` (Arrow Right) |
+| Fn + D | Toggle debug/user display |
 
 ## Display
 
-The Cardputer display shows:
+### User Mode (default)
+
+- **Connection status**: Green "Connected" when I2C master is polling, gray "Waiting..." otherwise
+- **Text preview**: Shows the last characters typed (clears on Enter)
+
+### Debug Mode (Fn+D to toggle)
 
 - **Request status**: Timestamp and status of the last I2C request (REQ RCVD/REQ SRVD)
 - **Queue**: Number of keypresses buffered (max 127)
-- **[ENQ]**: Last key queued from keyboard input
-- **[TX]**: Last key sent over I2C to the master device
+- **[ENQ]**: Last key queued from keyboard input (hex code)
+- **[TX]**: Last key sent over I2C to the master device (hex code)
 
 ## How It Works
 

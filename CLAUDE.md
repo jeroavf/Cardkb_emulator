@@ -25,8 +25,10 @@ Single-file Arduino sketch with these components:
 
 - **Ring buffer** (`q[]`, `qh`, `qt`): 128-byte circular buffer storing keypresses until the I2C master reads them
 - **I2C slave handler** (`onRequest()`): Responds to I2C read requests by popping from the ring buffer
-- **Key mapping**: Fn+IJKL or Fn+WASD produce CardKB arrow codes (`0xB4`-`0xB7`)
-- **UI display**: Shows queue status, last enqueued key, and last transmitted key with timestamps
+- **Key mapping**: Fn+IJKL or Fn+WAS produce CardKB arrow codes (`0xB4`-`0xB7`), Fn+D toggles display mode
+- **User display** (`drawUserDisplay()`): Clean interface with connection status and text preview
+- **Debug display** (`drawDebugDisplay()`): Technical view with hex codes, timestamps, queue status
+- **Text preview** (`previewBuf[]`): 40-char buffer showing recently typed characters
 - **Audio feedback**: Buzzer beep (1800Hz, 10ms) on each keypress
 
 ## Key Constants
@@ -36,3 +38,5 @@ Single-file Arduino sketch with these components:
 - Enter: `0x0D`, Backspace: `0x08`
 - `BEEP_FREQ = 1800`: Buzzer frequency in Hz
 - `BEEP_DURATION = 10`: Buzzer duration in ms
+- `CONNECTION_TIMEOUT_MS = 2000`: Time before showing "Waiting..." status
+- `PREVIEW_SIZE = 40`: Text preview buffer size
